@@ -1,0 +1,14 @@
+
+{
+    "ad":"Haci",
+    "soyad":"Kamaci",
+    "yas":21,
+     "dersler":["ileri istatistik","veri madenciliği", "açik kaynak işletim sistemleri"],
+     "adres":{
+        "ülke":"Almanya",
+        "şehir":"Köln"
+     }
+
+
+}
+

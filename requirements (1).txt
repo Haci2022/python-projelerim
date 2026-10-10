@@ -1,0 +1,309 @@
+#!/usr/bin/env python3
+"""
+Çift Selfie Stüdyosu - Couple Selfie Studio
+Bu proje, verilen çift selfie fotoğrafını analiz eder ve çeşitli
+sanatsal filtreler + metin eklemeleriyle yeni versiyonlar üretir.
+
+Kullanım:
+    python main.py
+    python main.py --input baska_foto.jpg
+"""
+
+import argparse
+import os
+from pathlib import Path
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageOps
+import numpy as np
+from collections import Counter
+import colorsys
+
+
+def get_dominant_colors(image: Image.Image, n_colors: int = 5) -> list:
+    """Görüntüdeki baskın renkleri bul (basit quantize yöntemi)."""
+    # Küçült ki hızlı olsun
+    small = image.resize((100, 100))
+    # Quantize
+    quantized = small.quantize(colors=n_colors, method=Image.Quantize.MEDIANCUT)
+    palette = quantized.getpalette()
+    try:
+        color_counts = Counter(quantized.get_flattened_data())
+    except AttributeError:
+        color_counts = Counter(quantized.getdata())
+    
+    colors = []
+    for idx, count in color_counts.most_common(n_colors):
+        r = palette[idx * 3]
+        g = palette[idx * 3 + 1]
+        b = palette[idx * 3 + 2]
+        colors.append((r, g, b))
+    return colors
+
+
+def rgb_to_hex(rgb: tuple) -> str:
+    return "#{:02x}{:02x}{:02x}".format(*rgb)
+
+
+def analyze_image(image: Image.Image) -> dict:
+    """Temel istatistikleri hesapla."""
+    arr = np.array(image)
+    brightness = arr.mean()
+    # Basit kontrast tahmini (standart sapma)
+    contrast = arr.std()
+    
+    # Dominant colors
+    colors = get_dominant_colors(image, 5)
+    
+    return {
+        "size": image.size,
+        "mode": image.mode,
+        "brightness": round(brightness, 1),
+        "contrast": round(contrast, 1),
+        "dominant_colors": colors,
+        "hex_colors": [rgb_to_hex(c) for c in colors],
+    }
+
+
+def add_heart_overlay(image: Image.Image, opacity: float = 0.35) -> Image.Image:
+    """Sağ üst köşeye yarı saydam kalp ekle."""
+    img = image.convert("RGBA")
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    
+    # Basit kalp çizimi (iki daire + üçgen)
+    w, h = img.size
+    cx, cy = int(w * 0.85), int(h * 0.12)
+    size = int(min(w, h) * 0.08)
+    
+    # İki daire
+    draw.ellipse([cx - size, cy - size//2, cx, cy + size//2], fill=(255, 80, 120, int(255*opacity)))
+    draw.ellipse([cx, cy - size//2, cx + size, cy + size//2], fill=(255, 80, 120, int(255*opacity)))
+    # Alt üçgen
+    draw.polygon([
+        (cx - size, cy + size//4),
+        (cx + size, cy + size//4),
+        (cx, cy + size + size//2)
+    ], fill=(255, 80, 120, int(255*opacity)))
+    
+    return Image.alpha_composite(img, overlay).convert("RGB")
+
+
+def add_text_banner(image: Image.Image, text: str = "Sonsuza Dek ❤️", 
+                    position: str = "bottom") -> Image.Image:
+    """Alt veya üst kısma şık bir metin bandı ekle."""
+    img = image.convert("RGBA")
+    w, h = img.size
+    
+    # Banner yüksekliği
+    banner_h = int(h * 0.12)
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    
+    if position == "bottom":
+        y0 = h - banner_h
+        # Gradient benzeri koyu şerit
+        for i in range(banner_h):
+            alpha = int(180 * (i / banner_h) ** 0.5)
+            draw.rectangle([0, y0 + i, w, y0 + i + 1], fill=(20, 20, 30, alpha))
+        text_y = y0 + banner_h // 3
+    else:
+        for i in range(banner_h):
+            alpha = int(180 * ((banner_h - i) / banner_h) ** 0.5)
+            draw.rectangle([0, i, w, i + 1], fill=(20, 20, 30, alpha))
+        text_y = banner_h // 3
+    
+    # Font (sistem fontu dene, yoksa default)
+    try:
+        font_size = max(28, int(w * 0.045))
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+    except Exception:
+        font = ImageFont.load_default()
+    
+    # Metni ortala
+    bbox = draw.textbbox((0, 0), text, font=font)
+    text_w = bbox[2] - bbox[0]
+    text_x = (w - text_w) // 2
+    
+    # Gölge
+    draw.text((text_x + 2, text_y + 2), text, font=font, fill=(0, 0, 0, 180))
+    draw.text((text_x, text_y), text, font=font, fill=(255, 255, 255, 240))
+    
+    return Image.alpha_composite(img, overlay).convert("RGB")
+
+
+def apply_vintage(image: Image.Image) -> Image.Image:
+    """Vintage / sepia tarzı filtre."""
+    # Sepia
+    sepia = ImageOps.colorize(image.convert("L"), "#704214", "#C0A080")
+    # Biraz blur + grain hissi
+    enhancer = ImageEnhance.Contrast(sepia)
+    sepia = enhancer.enhance(1.1)
+    enhancer = ImageEnhance.Color(sepia)
+    sepia = enhancer.enhance(0.85)
+    return sepia
+
+
+def apply_cinematic(image: Image.Image) -> Image.Image:
+    """Sinematik (letterbox + color grade) görünüm."""
+    w, h = image.size
+    # Letterbox (siyah şeritler)
+    new_h = int(h * 1.15)
+    canvas = Image.new("RGB", (w, new_h), (10, 10, 12))
+    offset = (new_h - h) // 2
+    canvas.paste(image, (0, offset))
+    
+    # Color grade: biraz mavi ton + kontrast
+    arr = np.array(canvas).astype(np.float32)
+    # Mavi kanalı biraz artır, kırmızıyı azalt
+    arr[:, :, 0] = np.clip(arr[:, :, 0] * 0.92, 0, 255)  # R
+    arr[:, :, 2] = np.clip(arr[:, :, 2] * 1.08, 0, 255)  # B
+    canvas = Image.fromarray(arr.astype(np.uint8))
+    
+    enhancer = ImageEnhance.Contrast(canvas)
+    canvas = enhancer.enhance(1.15)
+    return canvas
+
+
+def apply_soft_glow(image: Image.Image) -> Image.Image:
+    """Yumuşak glow / rüya gibi efekt."""
+    blurred = image.filter(ImageFilter.GaussianBlur(radius=8))
+    # Blend
+    return Image.blend(image, blurred, alpha=0.35)
+
+
+def create_polaroid(image: Image.Image, caption: str = "Bizim Hikayemiz") -> Image.Image:
+    """Polaroid tarzı çerçeve."""
+    # Küçült biraz
+    max_side = 900
+    img = image.copy()
+    img.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
+    
+    border = 40
+    bottom_extra = 90
+    new_w = img.width + border * 2
+    new_h = img.height + border + bottom_extra
+    
+    polaroid = Image.new("RGB", (new_w, new_h), (250, 248, 240))
+    polaroid.paste(img, (border, border))
+    
+    draw = ImageDraw.Draw(polaroid)
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
+    except Exception:
+        font = ImageFont.load_default()
+    
+    bbox = draw.textbbox((0, 0), caption, font=font)
+    tw = bbox[2] - bbox[0]
+    draw.text(((new_w - tw) // 2, img.height + border + 25), caption, 
+              font=font, fill=(60, 50, 40))
+    
+    return polaroid
+
+
+def generate_all_versions(input_path: str, output_dir: str):
+    """Tüm varyasyonları üret ve kaydet."""
+    print("📷 Görüntü yükleniyor...")
+    img = Image.open(input_path).convert("RGB")
+    
+    print("📊 Analiz yapılıyor...")
+    stats = analyze_image(img)
+    
+    print("\n" + "="*50)
+    print("GÖRÜNTÜ ANALİZİ")
+    print("="*50)
+    print(f"Boyut          : {stats['size'][0]} x {stats['size'][1]} px")
+    print(f"Parlaklık      : {stats['brightness']} / 255")
+    print(f"Kontrast (std) : {stats['contrast']}")
+    print(f"Baskın Renkler :")
+    for hex_c, rgb in zip(stats['hex_colors'], stats['dominant_colors']):
+        print(f"   {hex_c}  RGB{rgb}")
+    print("="*50 + "\n")
+    
+    os.makedirs(output_dir, exist_ok=True)
+    
+    versions = {
+        "01_orijinal.jpg": img,
+        "02_siyah_beyaz.jpg": ImageOps.grayscale(img).convert("RGB"),
+        "03_vintage.jpg": apply_vintage(img),
+        "04_cinematic.jpg": apply_cinematic(img),
+        "05_soft_glow.jpg": apply_soft_glow(img),
+        "06_kalpli.jpg": add_heart_overlay(img),
+        "07_banner_sonsuzadek.jpg": add_text_banner(img, "Sonsuza Dek ❤️"),
+        "08_polaroid.jpg": create_polaroid(img, "Bizim Hikayemiz ✨"),
+        "09_kalpli_banner.jpg": add_text_banner(add_heart_overlay(img), "Birlikte Daha Güçlü 💕"),
+    }
+    
+    print("🎨 Varyasyonlar oluşturuluyor...\n")
+    for name, version in versions.items():
+        out_path = os.path.join(output_dir, name)
+        version.save(out_path, quality=92)
+        print(f"  ✅ {name}")
+    
+    # Renk paleti görseli
+    palette_img = create_palette_image(stats['dominant_colors'], stats['hex_colors'])
+    palette_path = os.path.join(output_dir, "00_renk_paleti.jpg")
+    palette_img.save(palette_path, quality=95)
+    print(f"  ✅ 00_renk_paleti.jpg")
+    
+    print(f"\n🎉 Tüm dosyalar kaydedildi → {output_dir}/")
+    return stats
+
+
+def create_palette_image(colors: list, hexes: list, width: int = 800, height: int = 200) -> Image.Image:
+    """Baskın renklerden güzel bir palet görseli oluştur."""
+    n = len(colors)
+    swatch_w = width // n
+    img = Image.new("RGB", (width, height))
+    draw = ImageDraw.Draw(img)
+    
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
+    except Exception:
+        font = ImageFont.load_default()
+    
+    for i, (color, hex_c) in enumerate(zip(colors, hexes)):
+        x0 = i * swatch_w
+        draw.rectangle([x0, 0, x0 + swatch_w, height], fill=color)
+        # Yazı rengi (açık/koyu)
+        luminance = 0.299*color[0] + 0.587*color[1] + 0.114*color[2]
+        text_color = (20, 20, 20) if luminance > 140 else (240, 240, 240)
+        # Hex yazısı
+        bbox = draw.textbbox((0, 0), hex_c, font=font)
+        tw = bbox[2] - bbox[0]
+        draw.text((x0 + (swatch_w - tw)//2, height//2 - 10), hex_c, 
+                  font=font, fill=text_color)
+    
+    return img
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Çift Selfie Stüdyosu - Fotoğrafınızı sanatsal hale getirin ❤️"
+    )
+    parser.add_argument(
+        "--input", "-i",
+        default="input.jpg",
+        help="Girdi fotoğraf yolu (varsayılan: input.jpg)"
+    )
+    parser.add_argument(
+        "--output", "-o",
+        default="output",
+        help="Çıktı klasörü (varsayılan: output)"
+    )
+    args = parser.parse_args()
+    
+    if not os.path.exists(args.input):
+        print(f"❌ Hata: '{args.input}' bulunamadı!")
+        print("   Lütfen fotoğrafı 'input.jpg' olarak koyun veya --input ile belirtin.")
+        return
+    
+    print("\n💖  ÇİFT SELFIE STÜDYOSU  💖")
+    print("   Python ile romantik fotoğraf düzenleme\n")
+    
+    generate_all_versions(args.input, args.output)
+    
+    print("\n💡 İpucu: output/ klasöründeki fotoğrafları Instagram'a atabilirsin!")
+    print("   Yeni metinler eklemek için main.py içindeki string'leri değiştir.")
+
+
+if __name__ == "__main__":
+    main()

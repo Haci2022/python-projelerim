@@ -1,0 +1,20 @@
+{
+  "ogrenciler": [
+    {
+      "ad": "haci",
+      "yaş": 21,
+      "dersler": [
+        "kimya",
+        "fizik"
+      ]
+    },
+    {
+      "ad": "esma",
+      "yaş": 20,
+      "dersler": [
+        "ingilizce",
+        "edebiyat"
+      ]
+    }
+  ]
+}
