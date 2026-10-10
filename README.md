@@ -1,18 +1,26 @@
-Python Projelerim 
-Bu depoda Python öğrenme sürecimde geliştirdiğim temel alıştırmaları, küçük çaplı uygulamaları ve pratik kodlarımı bulabilirsiniz.
+# 🐍 Python Projelerim ve Alıştırmalarım
 
+Bu depo, Python öğrenme sürecimde ve geliştirdiğim küçük çaplı yazılım projelerinde yazdığım kodları, algoritma alıştırmalarını ve pratik uygulamalarımı topladığım kişisel çalışma alanımı oluşturmaktadır.
 
-Depodaki Bazı Dosyalar ve Amaçları 
+---
 
-**alan_cevre.py**: Temel geometrik şekillerin alan ve çevre hesaplamaları.
-**ates_olcer.py**:Sıcaklık birimmleri arası dönüşüm veya benzeri mantıksal kontroller.
-**ağırlıklı_ortalama_hesaplama.py**: Ağırlıklı not ortalaması hesaplayan uygulama.
-**fibbonaci_dizisi.py**: fibbonaci serisi oluşturma örnekleri.
-**sözlük.py**:python sözlük veri yapısı kullanımları.
+## 📂 Depo İçeriği ve Örnek Projeler
 
-Nasıl Çalışır?
+Sol taraftaki dosya gezgininde bulabileceğiniz temel Python betiklerinden bazıları ve işlevleri:
 
-Bilgisayarınızda herhangi bir betiği çalıştırmak için terminal veya komut satırından ilgili dizine gidip şu komutu verebilirsiniz:
+* **`alan-cevre.py`**: Temel geometrik şekillerin alan ve çevre hesaplamalarını yapan matematiksel uygulama.
+* **`ates_olcer.py`**: Sıcaklık birimleri arası dönüşüm ve mantıksal kontrol betiği.
+* **`agrikli_ortalama_hesaplama.py`**: Girilen ders notları ve ağırlıklarına göre ortalama hesaplayan script.
+* **`fibbonaci_dizisi.py`**: Algoritmik düşünceyi geliştirmek için yazılmış Fibonacci serisi üreticisi.
+* **`sözlük.py`**: Python'un temel veri yapılarından olan sözlük (`dictionary`) kullanım örnekleri.
+* **`fonksiyonlar.py` ve `for_döngüsü.py`**: Döngü yapıları ve fonksiyon tanımlama pratikleri.
 
-'''Bash
-python dosya_adi.py
+---
+
+## ⚙️ Gereksinimler ve Kurulum
+
+Projelerdeki betikleri kendi bilgisayarınızda çalıştırmak için sisteminizde Python'un güncel bir sürümünün (Python 3.x) kurulu olması gerekir.
+
+1. Depoyu bilgisayarınıza klonlayın veya indirin:
+   ```bash
+   git clone [https://github.com/Haci2022/python-prolerim.git](https://github.com/Haci2022/python-prolerim.git)
